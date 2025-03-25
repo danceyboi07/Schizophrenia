@@ -1,0 +1,304 @@
+!pip install transformers datasets
+
+import random
+import torch
+import torch.nn as nn
+from transformers import AutoTokenizer, AutoModel, Trainer, TrainingArguments
+from datasets import Dataset
+
+
+def generate_synthetic_data(n_positive, n_negative):
+    positive_templates = [
+        "Patient reports auditory hallucinations and paranoid delusions. Difficulty concentrating and social withdrawal observed. Family History: Mother diagnosed with schizophrenia.",
+        "Patient exhibits disorganized speech and flat affect. Reports persistent delusions of persecution. Family History: No known family history.",
+        "Patient describes hearing voices and believes they are being monitored by the government. Family History: Uncle diagnosed with schizophrenia.",
+        "Patient shows signs of catatonia and disorganized behavior. Reports visual hallucinations. Family history: Father has a history of psychosis.",
+        "Patient has a long history of schizophrenia with frequent relapses. Currently experiencing command hallucinations. Family history: Sibling diagnosed with schizophrenia.",
+        "Patient reports delusions of grandeur and believes they have special powers. Family history: No known family history.",
+        "Patient exhibits negative symptoms such as apathy and lack of motivation. Reports auditory hallucinations. Family history: Mother has a history of schizophrenia.",
+        "Patient describes paranoid thoughts and believes their food is being poisoned. Family history: No known family history.",
+        "Patient shows signs of thought insertion and delusions of reference. Family history: Father diagnosed with schizophrenia.",
+        "Patient reports persistent auditory hallucinations and social withdrawal. Family history: No known family history.",
+        "Patient exhibits disorganized behavior and flat affect. Reports delusions of persecution. Family history: Sibling has a history of psychosis.",
+        "Patient describes visual hallucinations and believes they are being followed. Family history: Mother diagnosed with schizophrenia.",
+        "Patient reports auditory hallucinations and difficulty distinguishing reality. Family history: No known family history.",
+        "Patient exhibits catatonic behavior and disorganized speech. Family history: Father has a history of schizophrenia.",
+        "Patient describes delusions of grandeur and believes they are a famous historical figure. Family history: No known family history.",
+        "Patient reports paranoid delusions and auditory hallucinations. Family history: Mother diagnosed with schizophrenia.",
+        "Patient exhibits negative symptoms such as social withdrawal and lack of emotion. Family history: No known family history.",
+        "Patient describes persistent delusions and believes they are being controlled by an external force. Family history: Father has a history of psychosis.",
+        "Patient reports auditory hallucinations and disorganized thinking. Family history: No known family history.",
+        "Patient exhibits flat affect and reports delusions of reference. Family history: Mother diagnosed with schizophrenia.",
+        "Patient describes paranoid thoughts and believes they are being watched. Family history: No known family history.",
+        "Patient reports visual hallucinations and disorganized behavior. Family history: Father has a history of schizophrenia.",
+        "Patient exhibits catatonic behavior and reports auditory hallucinations. Family history: No known family history.",
+        "Patient describes delusions of persecution and believes they are being followed. Family history: Mother diagnosed with schizophrenia.",
+        "Patient reports persistent auditory hallucinations and social withdrawal. Family history: No known family history.",
+        "Patient exhibits disorganized speech and flat affect. Family history: Father has a history of psychosis.",
+        "Patient describes delusions of grandeur and believes they have special powers. Family history: No known family history.",
+        "Patient reports auditory hallucinations and difficulty concentrating. Family history: Mother diagnosed with schizophrenia.",
+        "Patient exhibits negative symptoms such as apathy and lack of motivation. Family history: No known family history.",
+        "Patient describes paranoid thoughts and believes their food is being poisoned. Family history: Father has a history of schizophrenia.",
+        "Patient reports persistent delusions and auditory hallucinations. Family history: No known family history.",
+        "Patient exhibits disorganized behavior and flat affect. Family history: Mother diagnosed with schizophrenia.",
+        "Patient describes delusions of reference and believes they are being controlled. Family history: No known family history.",
+        "Patient reports auditory hallucinations and social withdrawal. Family history: Father has a history of psychosis.",
+        "Patient exhibits catatonic behavior and disorganized speech. Family history: No known family history.",
+        "Patient describes paranoid delusions and believes they are being followed. Family history: Mother diagnosed with schizophrenia.",
+        "Patient reports auditory hallucinations and difficulty distinguishing reality. Family history: No known family history.",
+        "Patient exhibits flat affect and reports delusions of grandeur. Family history: Father has a history of schizophrenia.",
+        "Patient describes paranoid thoughts and believes they are being watched. Family history: No known family history.",
+        "Patient reports visual hallucinations and disorganized behavior. Family history: Mother diagnosed with schizophrenia.",
+        "Patient exhibits catatonic behavior and reports auditory hallucinations. Family history: No known family history.",
+        "Patient describes delusions of persecution and believes they are being followed. Family history: Father has a history of psychosis.",
+        "Patient reports persistent auditory hallucinations and social withdrawal. Family history: No known family history.",
+        "Patient exhibits disorganized speech and flat affect. Family history: Mother diagnosed with schizophrenia.",
+        "Patient describes delusions of grandeur and believes they have special powers. Family history: No known family history.",
+        "Patient reports auditory hallucinations and difficulty concentrating. Family history: Father has a history of schizophrenia.",
+        "Patient exhibits negative symptoms such as apathy and lack of motivation. Family history: No known family history.",
+        "Patient describes paranoid thoughts and believes their food is being poisoned. Family history: Mother diagnosed with schizophrenia.",
+        "Patient reports persistent delusions and auditory hallucinations. Family history: No known family history.",
+        "Patient exhibits disorganized behavior and flat affect. Family history: Father has a history of psychosis."
+
+
+
+    ]
+    negative_templates = [
+        "Patient reports mild anxiety and difficulty sleeping. No signs of psychosis. Family history: No known family history of mental illness.",
+        "Patient describes occasional mood swings but no hallucinations or delusions. Family history: Mother has a history of depression.",
+        "Patient reports stress due to work but no psychotic symptoms. Family history: No known family history.",
+        "Patient exhibits mild anxiety but no signs of schizophrenia. Family history: Father has a history of anxiety.",
+        "Patient reports occasional sadness but no hallucinations or delusions. Family history: No known family history.",
+        "Patient describes difficulty concentrating but no psychotic symptoms. Family history: No known family history.",
+        "Patient reports mild depression but no signs of schizophrenia. Family history: Mother has a history of depression.",
+        "Patient exhibits stress-related symptoms but no hallucinations or delusions. Family history: No known family history.",
+        "Patient reports occasional anxiety but no psychotic symptoms. Family history: No known family history.",
+        "Patient describes mild mood swings but no signs of schizophrenia. Family history: Father has a history of anxiety.",
+        "Patient reports stress but no hallucinations or delusions. Family history: No known family history.",
+        "Patient exhibits mild anxiety but no psychotic symptoms. Family history: Mother has a history of depression.",
+        "Patient reports occasional sadness but no signs of schizophrenia. Family history: No known family history.",
+        "Patient describes difficulty sleeping but no hallucinations or delusions. Family history: No known family history.",
+        "Patient reports mild depression but no psychotic symptoms. Family history: Father has a history of anxiety.",
+        "Patient exhibits stress-related symptoms but no signs of schizophrenia. Family history: No known family history.",
+        "Patient reports occasional anxiety but no hallucinations or delusions. Family history: Mother has a history of depression.",
+        "Patient describes mild mood swings but no psychotic symptoms. Family history: No known family history.",
+        "Patient reports stress but no signs of schizophrenia. Family history: No known family history.",
+        "Patient exhibits mild anxiety but no hallucinations or delusions. Family history: Father has a history of anxiety.",
+        "Patient reports occasional sadness but no psychotic symptoms. Family history: No known family history.",
+        "Patient describes difficulty concentrating but no signs of schizophrenia. Family history: Mother has a history of depression.",
+        "Patient reports mild depression but no hallucinations or delusions. Family history: No known family history.",
+        "Patient exhibits stress-related symptoms but no psychotic symptoms. Family history: No known family history.",
+        "Patient reports occasional anxiety but no signs of schizophrenia. Family history: Father has a history of anxiety.",
+        "Patient describes mild mood swings but no hallucinations or delusions. Family history: No known family history.",
+        "Patient reports stress but no psychotic symptoms. Family history: Mother has a history of depression.",
+        "Patient exhibits mild anxiety but no signs of schizophrenia. Family history: No known family history.",
+        "Patient reports occasional sadness but no hallucinations or delusions. Family history: No known family history.",
+        "Patient describes difficulty sleeping but no psychotic symptoms. Family history: Father has a history of anxiety.",
+        "Patient reports mild depression but no signs of schizophrenia. Family history: No known family history.",
+        "Patient exhibits stress-related symptoms but no hallucinations or delusions. Family history: Mother has a history of depression.",
+        "Patient reports occasional anxiety but no psychotic symptoms. Family history: No known family history.",
+        "Patient describes mild mood swings but no signs of schizophrenia. Family history: No known family history.",
+        "Patient reports stress but no hallucinations or delusions. Family history: Father has a history of anxiety.",
+        "Patient exhibits mild anxiety but no psychotic symptoms. Family history: No known family history.",
+        "Patient reports occasional sadness but no signs of schizophrenia. Family history: No known family history.",
+        "Patient describes difficulty concentrating but no hallucinations or delusions. Family history: Mother has a history of depression.",
+        "Patient reports mild depression but no psychotic symptoms. Family history: No known family history.",
+        "Patient exhibits stress-related symptoms but no signs of schizophrenia. Family history: No known family history.",
+        "Patient reports occasional anxiety but no hallucinations or delusions. Family history: Father has a history of anxiety.",
+        "Patient describes mild mood swings but no psychotic symptoms. Family history: No known family history.",
+        "Patient reports stress but no signs of schizophrenia. Family history: No known family history.",
+        "Patient exhibits mild anxiety but no hallucinations or delusions. Family history: Mother has a history of depression.",
+        "Patient reports occasional sadness but no psychotic symptoms. Family history: No known family history.",
+        "Patient describes difficulty sleeping but no signs of schizophrenia. Family history: No known family history.",
+        "Patient reports mild depression but no hallucinations or delusions. Family history: Father has a history of anxiety.",
+        "Patient exhibits stress-related symptoms but no psychotic symptoms. Family history: No known family history.",
+        "Patient reports occasional anxiety but no signs of schizophrenia. Family history: No known family history.",
+        "Patient describes mild mood swings but no hallucinations or delusions. Family history: Mother has a history of depression."
+
+    ]
+
+    data = []
+
+    # Generate positive (schizophrenia) examples.
+    for _ in range(n_positive):
+        # Draw age from a normal distribution (mean=25, std=5), clip between 15 and 40.
+        age = int(round(random.gauss(25, 5)))
+        age = max(15, min(age, 40))
+        # Bias toward Male.
+        gender = "Male" if random.random() < 0.7 else "Female"
+        notes = random.choice(positive_templates)
+        data.append({"age": str(age), "gender": gender, "notes": notes, "label": 1})
+
+    # Generate negative examples.
+    for _ in range(n_negative):
+        # Draw age from a normal distribution (mean=45, std=10), clip between 30 and 70.
+        age = int(round(random.gauss(45, 10)))
+        age = max(30, min(age, 70))
+        gender = "Male" if random.random() < 0.5 else "Female"
+        notes = random.choice(negative_templates)
+        data.append({"age": str(age), "gender": gender, "notes": notes, "label": 0})
+
+    # Shuffle the dataset to mix positive and negative examples.
+    random.shuffle(data)
+    return data
+
+# Generate synthetic data: 300 positive and 300 negative examples (total 600)
+synthetic_data = generate_synthetic_data(n_positive=300, n_negative=300)
+
+# Split the synthetic data into training and testing sets.
+train_data = synthetic_data[:75]
+test_data = synthetic_data[75:150]
+
+
+class BioBERTWithStructuredData(nn.Module):
+    def __init__(self, model_name, num_labels=2, structured_dim=2):
+        super(BioBERTWithStructuredData, self).__init__()
+        # Load the pre-trained BioBERT model (without its classification head)
+        self.text_model = AutoModel.from_pretrained(model_name)
+        self.dropout = nn.Dropout(0.1)
+        # BioBERT base has a hidden size of 768.
+        # We add structured_dim (2) for age and gender.
+        self.classifier = nn.Linear(768 + structured_dim, num_labels)
+
+    def forward(self, input_ids, attention_mask, structured, token_type_ids=None, labels=None):
+        # Pass token_type_ids if provided
+        outputs = self.text_model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids
+        )
+        # Use the [CLS] token representation as text features
+        cls_output = outputs.last_hidden_state[:, 0, :]  # shape: (batch_size, 768)
+        # Concatenate the structured features (age and gender)
+        combined = torch.cat([cls_output, structured], dim=1)
+        combined = self.dropout(combined)
+        logits = self.classifier(combined)
+
+        loss = None
+        if labels is not None:
+            loss_fn = nn.CrossEntropyLoss()
+            loss = loss_fn(logits, labels)
+
+        return {"loss": loss, "logits": logits} if loss is not None else {"logits": logits}
+
+    def state_dict(self, *args, **kwargs):
+        # Override state_dict to ensure all tensors are contiguous
+        original_state = super().state_dict(*args, **kwargs)
+        contiguous_state = {k: v.contiguous() for k, v in original_state.items()}
+        return contiguous_state
+
+
+model_name = "dmis-lab/biobert-base-cased-v1.1"
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = BioBERTWithStructuredData(model_name=model_name, num_labels=2, structured_dim=2)
+
+train_dataset = Dataset.from_list(train_data)
+test_dataset = Dataset.from_list(test_data)
+
+
+def combine_fields(example):
+    example["text"] = f"Age: {example['age']}; Gender: {example['gender']}; Notes: {example['notes']}"
+    return example
+
+def add_structured_features(example):
+    # Normalize age (divide by 100 so that typical ages fall in a smaller range)
+    age_value = float(example["age"]) / 100.0
+    # Encode gender: "Female" -> 1.0, "Male" -> 0.0
+    gender_value = 1.0 if example["gender"].strip().lower() == "female" else 0.0
+    example["structured"] = [age_value, gender_value]
+    return example
+
+train_dataset = train_dataset.map(combine_fields)
+train_dataset = train_dataset.map(add_structured_features)
+test_dataset = test_dataset.map(combine_fields)
+test_dataset = test_dataset.map(add_structured_features)
+
+# Tokenize the text field
+def tokenize_function(examples):
+    return tokenizer(
+        examples["text"],
+        truncation=True,
+        padding="max_length",
+        max_length=128,
+    )
+
+train_dataset = train_dataset.map(tokenize_function, batched=True)
+test_dataset = test_dataset.map(tokenize_function, batched=True)
+
+# Set the format for PyTorch tensors, including the structured features and labels.
+columns_to_return = ["input_ids", "attention_mask", "structured", "label", "token_type_ids"]
+train_dataset.set_format(type="torch", columns=columns_to_return)
+test_dataset.set_format(type="torch", columns=columns_to_return)
+
+training_args = TrainingArguments(
+    output_dir="./results",
+    evaluation_strategy="epoch",
+    learning_rate=2e-5,
+    per_device_train_batch_size=4,
+    per_device_eval_batch_size=4,
+    num_train_epochs=3,
+    weight_decay=0.01,
+    logging_dir="./logs",
+    logging_steps=10,
+    save_strategy="epoch",
+)
+
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    train_dataset=train_dataset,
+    eval_dataset=test_dataset,
+)
+
+
+print("Training the model on synthetic data...")
+trainer.train()
+
+print("\nEvaluating the model on test data:")
+eval_results = trainer.evaluate()
+print(eval_results)
+
+
+def predict_schizophrenia_probability(age, gender, notes, temperature=1.0):
+    # Combine inputs into text.
+    text = f"Age: {age}; Gender: {gender}; Notes: {notes}"
+    inputs = tokenizer(
+        text,
+        return_tensors="pt",
+        truncation=True,
+        padding="max_length",
+        max_length=128,
+    )
+    # Prepare structured features.
+    age_value = float(age) / 100.0
+    gender_value = 1.0 if gender.strip().lower() == "female" else 0.0
+    structured = torch.tensor([[age_value, gender_value]], dtype=torch.float)
+    inputs["structured"] = structured
+
+    # Move inputs and model to the appropriate device.
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+
+    # Perform prediction without gradient computation.
+    with torch.no_grad():
+        outputs = model(**inputs)
+    logits = outputs["logits"]
+    #temperature scaling for calibration
+    logits_scaled = logits / temperature
+    # Compute softmax probabilities and return the probability for class 1.
+    prob = torch.softmax(logits_scaled, dim=1)[0, 1].item()
+    return prob
+
+
+new_patient_age = "22"  # Typical of a younger patient with schizophrenia
+new_patient_gender = "Male"  # Higher chance given our synthetic bias
+new_patient_notes = (
+    "Patient reports hearing voices and experiencing vivid hallucinations. "
+    "There are signs of delusional thinking and disorganized speech."
+    "Family History: history of psychosis in father's side of family"
+)
+
+schizophrenia_probability = predict_schizophrenia_probability(new_patient_age, new_patient_gender, new_patient_notes)
+print("\nPredicted Probability of Schizophrenia for the new patient:")
+print(f"{schizophrenia_probability:.4f}")
